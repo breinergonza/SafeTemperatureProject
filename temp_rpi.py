@@ -1,13 +1,28 @@
 import time
-import board
-import adafruit_dht
+# import board
+# import adafruit_dht
 import requests
 import json
+from io import open
+import binascii
 
-url = "http://52.23.188.230:8000"
+from datetime import datetime
+
+from Crypto.PublicKey import DSA
+# from Crypto.Cipher import AES, PKCS1_OAEP
+from Crypto.Hash import SHA256
+from Crypto.Signature import DSS
+
+# url = "http://52.23.188.230:8000"
+# payload = {
+#   'username': 'began',
+#   'password': 'Bredpit1065'
+# }
+
+url = "http://localhost:8000"
 
 payload = {
-  'username': 'began',
+  'username': 'breinergonza',
   'password': 'Bredpit1065'
 }
 
@@ -32,37 +47,122 @@ rpsKey = respKey.text
 
 dtk = json.loads(rpsKey)
 
-pKey = dtk["data"]["public_key"]
+pKey = dtk["data"]["private_key"]
 
 print(pKey)
 
-# Initial the dht device, with data pin connected to:
-dhtDevice = adafruit_dht.DHT22(board.D4, use_pulseio=False)
+signature = bytes.fromhex(pKey)
 
-# you can pass DHT22 use_pulseio=False if you wouldn't like to use pulseio.
-# This may be necessary on a Linux single board computer like the Raspberry Pi,
-# but it will not work in CircuitPython.
-# dhtDevice = adafruit_dht.DHT22(board.D18, use_pulseio=False)
+#Obtengo y guardo la llave privada para cifrar los datos
+file_out = open("./archivos/private_key_dsa.pem", "wb")
+file_out.write(signature)
+file_out.close()
+
+
+class Switcher(object):
+    def numbers_to_seg(self, argument):
+        """Dispatch method"""
+        method_name = 'seg_' + str(argument)
+        # Get the method from 'self'. Default to a lambda.
+        method = getattr(self, method_name, lambda: "Invalid second")
+        return method()
+ 
+    def seg_5(self):
+
+        return "min_5"
+ 
+    def seg_15(self):
+
+        return "min_15"
+ 
+    def seg_25(self):
+
+        return "min_25"
+    
+    def seg_35(self):
+
+        return "min_35"
+    
+    def seg_45(self):
+
+        return "min_45"
+    
+    def seg_55(self):
+
+        return "min_55"
+
+# Conexión al sensor
+# dhtDevice = adafruit_dht.DHT22(board.D4, use_pulseio=False)
+
 
 while True:
-    try:
-        # Print the values to the serial port
-        temperature_c = dhtDevice.temperature
-        temperature_f = temperature_c * (9 / 5) + 32
-        humidity = dhtDevice.humidity
-        print(
-            "Temp: {:.1f} F / {:.1f} C    Humidity: {}% ".format(
-                temperature_f, temperature_c, humidity
-            )
-        )
 
-    except RuntimeError as error:
-        # Errors happen fairly often, DHT's are hard to read, just keep going
-        print(error.args[0])
-        time.sleep(2.0)
-        continue
-    except Exception as error:
-        dhtDevice.exit()
-        raise error
+    temperatura = "12"
 
-    time.sleep(2.0)
+    hash_obj = SHA256.new(temperatura.encode("utf8"))
+    key = DSA.import_key(open("./archivos/private_key_dsa.pem").read())
+    signer = DSS.new(key, 'fips-186-3')
+    signature = signer.sign(hash_obj)
+
+    dts = binascii.hexlify(signature).decode('utf8')
+
+    print("Datos cifrado : " + dts)    
+
+    i = 1
+
+    while True:
+        time.sleep(1.0)
+        now = datetime.now()
+        seg = f'{now.second}'
+        newstr = seg[-1:]
+        if newstr=="5":            
+            break
+        else:
+            i = i + 1        
+    
+    a=Switcher()
+    respSeg = a.numbers_to_seg(now.second)
+    
+    print(respSeg)
+
+    urlGrafica = f'{url}/vTemp/'
+
+    payloadGrafica={
+        'minuto': respSeg,
+        'temperatura': temperatura,
+        'firma': dts
+        }
+    
+    pGr = json.dumps(payloadGrafica)
+
+    print(pGr)
+
+    headersGrafica = {
+        'Authorization': f'Token {token}',
+        'Content-Type': 'application/json'
+    }
+
+    responseGrafica = requests.request("POST", urlGrafica, headers=headersGrafica, data=pGr)
+    print(responseGrafica.text)
+
+    # try:
+    #     # Print the values to the serial port
+    #     temperature_c = dhtDevice.temperature
+    #     temperature_f = temperature_c * (9 / 5) + 32
+    #     humidity = dhtDevice.humidity
+    #     print(
+    #         "Temp: {:.1f} F / {:.1f} C    Humidity: {}% ".format(
+    #             temperature_f, temperature_c, humidity
+    #         )
+    #     )
+
+    # except RuntimeError as error:
+    #     # Errors happen fairly often, DHT's are hard to read, just keep going
+    #     print(error.args[0])
+    #     time.sleep(2.0)
+    #     continue
+    # except Exception as error:
+    #     dhtDevice.exit()
+    #     raise error
+
+    time.sleep(5.0)
