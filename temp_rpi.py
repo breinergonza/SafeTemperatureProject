@@ -2,8 +2,9 @@ import time
 import board
 import adafruit_dht
 import requests
+import json
 
-url = "http://52.23.188.230:8000/api/account/login"
+url = "http://52.23.188.230:8000"
 
 payload = {
   'username': 'began',
@@ -11,12 +12,29 @@ payload = {
 }
 
 files=[]
-
 header={}
+response = requests.request("POST", f'{url}/api/account/login', headers=header, data=payload, files=files)
+rps = response.text
 
-response = requests.request("POST", url, headers=header, data=payload, files=files)
+# login = json.dumps(rps)
+dt = json.loads(rps)
 
-print(response.text)
+token = dt["token"]
+
+print(token)
+
+header={
+        'Authorization': f'Token {token}'
+    }
+
+respKey = requests.request("GET", f'{url}/gKeyDsa', headers=header, data=payload)
+rpsKey = respKey.text
+
+dtk = json.loads(rpsKey)
+
+pKey = dtk["data"]["public_key"]
+
+print(pKey)
 
 # Initial the dht device, with data pin connected to:
 dhtDevice = adafruit_dht.DHT22(board.D4, use_pulseio=False)
